@@ -1,199 +1,231 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 
 function App() {
+  // ฟอร์มค่าเริ่มต้น (ตาม Primus MQTT)
+  const [settings, setSettings] = useState({
+    server: "primus-cloud.com",
+    username: "Primus",
+    password: "1234567",
+    client_id: "client_SwbZNsTGv9VCelur",
+    topic: "RXEFiNP8lB/#",
+  });
+
   const [status, setStatus] = useState("Disconnected");
-  const [dataList, setDataList] = useState([]);
-  const [autoReconnect, setAutoReconnect] = useState(true);
-
+  const [mqttStatus, setMqttStatus] = useState("-");
+  const [messages, setMessages] = useState([]);
   const wsRef = useRef(null);
-  const reconnectTimer = useRef(null);
-  const manualStop = useRef(false); // ✅ ตัวบอกว่าผู้ใช้กด Stop เองหรือไม่
 
-  // --------------------------
-  // ฟังก์ชันเริ่มเชื่อมต่อ WebSocket
-  // --------------------------
-  const startConnection = () => {
+  // -----------------------------
+  // Connect to MQTT via API
+  // -----------------------------
+  const connectMQTT = async () => {
+    setStatus("Connecting...");
+    try {
+      const res = await fetch("http://localhost:8080/api/mqtt/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+
+      const result = await res.json();
+      if (result.status === "connected") {
+        setMqttStatus("✅ MQTT Connected");
+        setStatus("MQTT Connected");
+        connectWebSocket();
+      } else {
+        setMqttStatus("❌ MQTT Failed");
+        setStatus("Failed to connect MQTT");
+      }
+    } catch (err) {
+      console.error(err);
+      setStatus("Error: " + err.message);
+      setMqttStatus("❌ Error");
+    }
+  };
+
+  // -----------------------------
+  // Connect WebSocket
+  // -----------------------------
+  const connectWebSocket = () => {
     if (wsRef.current) {
-      console.warn("⚠️ Already connected or connecting...");
+      console.warn("⚠️ Socket already connected");
       return;
     }
 
-    manualStop.current = false; // รีเซ็ตค่า เพราะนี่คือการเชื่อมต่อใหม่
-    console.log("🔄 Attempting to connect WebSocket...");
-    const socket = new WebSocket("ws://localhost:8080/ws");
-    wsRef.current = socket;
+    const ws = new WebSocket("ws://localhost:8080/ws");
+    wsRef.current = ws;
 
-    setStatus("Connecting...");
-
-    socket.onopen = () => {
-      console.log("✅ Connected to WebSocket server");
-      setStatus("Connected");
-      clearTimeout(reconnectTimer.current);
+    ws.onopen = () => {
+      console.log("✅ WebSocket connected");
+      setStatus("WebSocket Connected");
     };
 
-    socket.onmessage = (event) => {
+    ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data.device && data.temperature && data.humidity) {
-          setDataList((prev) => [data, ...prev.slice(0, 49)]);
-        }
+        const msg = JSON.parse(event.data);
+        setMessages((prev) => [msg, ...prev.slice(0, 99)]);
       } catch {
-        console.log("💬 Message:", event.data);
+        setMessages((prev) => [event.data, ...prev.slice(0, 99)]);
       }
     };
 
-    socket.onclose = (event) => {
-      console.warn("🔌 Disconnected from server");
-      wsRef.current = null;
-
-      // 🔥 Reconnect เฉพาะเมื่อผู้ใช้ไม่ได้กด stop
-      if (!manualStop.current && autoReconnect) {
-        setStatus("Reconnecting...");
-        console.log("⏳ Will attempt to reconnect in 5 seconds...");
-        reconnectTimer.current = setTimeout(() => {
-          startConnection();
-        }, 5000);
-      } else {
-        setStatus("Disconnected");
-      }
-    };
-
-    socket.onerror = (err) => {
-      console.error("❌ WebSocket error:", err);
-      socket.close();
-    };
-  };
-
-  // --------------------------
-  // ฟังก์ชันปิดการเชื่อมต่อ
-  // --------------------------
-  const stopConnection = () => {
-    if (wsRef.current) {
-      console.log("🛑 Manual stop connection");
-      manualStop.current = true; // ✅ บอกให้ระบบรู้ว่าเป็น stop โดยผู้ใช้
-      wsRef.current.close();
+    ws.onclose = () => {
+      console.log("🔌 WebSocket closed");
       wsRef.current = null;
       setStatus("Disconnected");
-      clearTimeout(reconnectTimer.current);
-    }
+    };
   };
 
-  // --------------------------
-  // Cleanup เมื่อ component ถูก unmount
-  // --------------------------
-  useEffect(() => {
-    return () => {
-      manualStop.current = true;
-      if (wsRef.current) wsRef.current.close();
-      clearTimeout(reconnectTimer.current);
-    };
-  }, []);
+  // -----------------------------
+  // Disconnect WebSocket + MQTT
+  // -----------------------------
+  const disconnectAll = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setStatus("Disconnected");
+    setMqttStatus("Disconnected");
+  };
 
-  // --------------------------
-  // UI
-  // --------------------------
+  // -----------------------------
+  // UI Render
+  // -----------------------------
   return (
     <div style={{ padding: 20, fontFamily: "sans-serif" }}>
-      <h2>📊 Real-time Sensor Dashboard</h2>
+      <h2>🌐 Primus MQTT → Go → Socket Dashboard</h2>
 
-      <div style={{ marginBottom: 15 }}>
-        <p>
-          Connection:{" "}
-          <b
-            style={{
-              color:
-                status === "Connected"
-                  ? "green"
-                  : status === "Reconnecting..."
-                  ? "orange"
-                  : "red",
-            }}
-          >
-            {status}
-          </b>
-        </p>
-
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          {status === "Disconnected" || status === "Reconnecting..." ? (
-            <button
-              onClick={startConnection}
-              style={{
-                padding: "8px 16px",
-                background: "green",
-                color: "white",
-                borderRadius: "6px",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              ▶️ Start Connection
-            </button>
-          ) : (
-            <button
-              onClick={stopConnection}
-              style={{
-                padding: "8px 16px",
-                background: "red",
-                color: "white",
-                borderRadius: "6px",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              ⏹ Stop Connection
-            </button>
-          )}
-
-          <label style={{ marginLeft: "10px", userSelect: "none" }}>
-            <input
-              type="checkbox"
-              checked={autoReconnect}
-              onChange={(e) => setAutoReconnect(e.target.checked)}
-              style={{ marginRight: "6px" }}
-            />
-            Auto Reconnect
-          </label>
-        </div>
-      </div>
-
-      <table
-        border="1"
-        cellPadding="8"
+      {/* Settings */}
+      <div
         style={{
-          borderCollapse: "collapse",
-          width: "100%",
-          background: "#fff",
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 10,
+          marginBottom: 10,
         }}
       >
-        <thead style={{ background: "#eee" }}>
-          <tr>
-            <th>#</th>
-            <th>Device</th>
-            <th>Temperature (°C)</th>
-            <th>Humidity (%)</th>
-            <th>Timestamp</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dataList.length === 0 ? (
-            <tr>
-              <td colSpan="5" style={{ textAlign: "center" }}>
-                No data yet...
-              </td>
-            </tr>
-          ) : (
-            dataList.map((d, i) => (
-              <tr key={i}>
-                <td>{i + 1}</td>
-                <td>{d.device}</td>
-                <td>{d.temperature}</td>
-                <td>{d.humidity}</td>
-                <td>{new Date(d.timestamp).toLocaleTimeString()}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+        <input
+          placeholder="Server"
+          value={settings.server}
+          onChange={(e) =>
+            setSettings({ ...settings, server: e.target.value })
+          }
+        />
+        <input
+          placeholder="Username"
+          value={settings.username}
+          onChange={(e) =>
+            setSettings({ ...settings, username: e.target.value })
+          }
+        />
+        <input
+          placeholder="Password"
+          type="password"
+          value={settings.password}
+          onChange={(e) =>
+            setSettings({ ...settings, password: e.target.value })
+          }
+        />
+        <input
+          placeholder="Client ID"
+          value={settings.client_id}
+          onChange={(e) =>
+            setSettings({ ...settings, client_id: e.target.value })
+          }
+        />
+        <input
+          placeholder="Topic"
+          value={settings.topic}
+          onChange={(e) =>
+            setSettings({ ...settings, topic: e.target.value })
+          }
+        />
+      </div>
+
+      {/* Buttons */}
+      <div style={{ marginBottom: 10 }}>
+        <button
+          onClick={connectMQTT}
+          style={{
+            background: "green",
+            color: "white",
+            padding: "8px 16px",
+            border: "none",
+            borderRadius: 5,
+            marginRight: 10,
+          }}
+        >
+          ▶️ Connect
+        </button>
+        <button
+          onClick={disconnectAll}
+          style={{
+            background: "red",
+            color: "white",
+            padding: "8px 16px",
+            border: "none",
+            borderRadius: 5,
+          }}
+        >
+          ⏹ Disconnect
+        </button>
+      </div>
+
+      {/* Status */}
+      <p>
+        MQTT Status:{" "}
+        <b
+          style={{
+            color: mqttStatus.includes("✅") ? "green" : "red",
+          }}
+        >
+          {mqttStatus}
+        </b>
+      </p>
+      <p>
+        Socket Status:{" "}
+        <b
+          style={{
+            color: status.includes("Connected") ? "green" : "red",
+          }}
+        >
+          {status}
+        </b>
+      </p>
+
+      {/* Data */}
+      <div
+        style={{
+          background: "#f5f5f5",
+          padding: 10,
+          borderRadius: 8,
+          height: 400,
+          overflowY: "scroll",
+        }}
+      >
+        {messages.length === 0 ? (
+          <p>No messages received...</p>
+        ) : (
+          messages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                background: "white",
+                marginBottom: 6,
+                padding: 8,
+                borderRadius: 4,
+                boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+              }}
+            >
+              <pre style={{ margin: 0, fontSize: 13 }}>
+                {typeof m === "string"
+                  ? m
+                  : JSON.stringify(m, null, 2)}
+              </pre>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
