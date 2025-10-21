@@ -1,0 +1,77 @@
+basePath: /
+definitions:
+  main.ConnectRequest:
+    properties:
+      client_id:
+        example: client_SwbZNsTGv9VCelur
+        type: string
+      password:
+        example: "1234567"
+        type: string
+      server:
+        example: primus-cloud.com
+        type: string
+      topic:
+        example: RXEFiNP8lB/#
+        type: string
+      username:
+        example: Primus
+        type: string
+    type: object
+  main.ConnectResponse:
+    properties:
+      status:
+        example: connected
+        type: string
+      topic:
+        example: RXEFiNP8lB/#
+        type: string
+    type: object
+  main.DisconnectResponse:
+    properties:
+      status:
+        example: disconnected
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Fiber API ที่เชื่อมต่อ Primus MQTT Broker แล้วส่งต่อผ่าน WebSocket
+  title: Primus MQTT API
+  version: "1.0"
+paths:
+  /api/mqtt/connect:
+    post:
+      consumes:
+      - application/json
+      description: Connects the Go Fiber API to Primus MQTT broker and subscribes
+        to topic
+      parameters:
+      - description: MQTT Config
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/main.ConnectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.ConnectResponse'
+      summary: Connect to MQTT broker
+      tags:
+      - MQTT
+  /api/mqtt/disconnect:
+    post:
+      description: Disconnects from Primus MQTT broker and closes all WebSocket connections
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.DisconnectResponse'
+      summary: Disconnect MQTT
+      tags:
+      - MQTT
+swagger: "2.0"

@@ -1,0 +1,113 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Fiber API ที่เชื่อมต่อ Primus MQTT Broker แล้วส่งต่อผ่าน WebSocket",
+        "title": "Primus MQTT API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/api/mqtt/connect": {
+            "post": {
+                "description": "Connects the Go Fiber API to Primus MQTT broker and subscribes to topic",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MQTT"
+                ],
+                "summary": "Connect to MQTT broker",
+                "parameters": [
+                    {
+                        "description": "MQTT Config",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.ConnectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ConnectResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/mqtt/disconnect": {
+            "post": {
+                "description": "Disconnects from Primus MQTT broker and closes all WebSocket connections",
+                "tags": [
+                    "MQTT"
+                ],
+                "summary": "Disconnect MQTT",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.DisconnectResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "main.ConnectRequest": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string",
+                    "example": "client_SwbZNsTGv9VCelur"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "1234567"
+                },
+                "server": {
+                    "type": "string",
+                    "example": "primus-cloud.com"
+                },
+                "topic": {
+                    "type": "string",
+                    "example": "RXEFiNP8lB/#"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "Primus"
+                }
+            }
+        },
+        "main.ConnectResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "example": "connected"
+                },
+                "topic": {
+                    "type": "string",
+                    "example": "RXEFiNP8lB/#"
+                }
+            }
+        },
+        "main.DisconnectResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "example": "disconnected"
+                }
+            }
+        }
+    }
+}

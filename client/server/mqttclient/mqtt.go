@@ -11,7 +11,7 @@ type MQTTClient struct {
 	Client paho.Client
 }
 
-// ฟังก์ชันเชื่อมต่อ MQTT Broker
+// Connect เชื่อมต่อกับ MQTT Broker
 func (m *MQTTClient) Connect(broker, username, password, clientID string) error {
 	opts := paho.NewClientOptions()
 	opts.AddBroker(broker)
@@ -35,7 +35,7 @@ func (m *MQTTClient) Connect(broker, username, password, clientID string) error 
 	return nil
 }
 
-// ฟังก์ชัน Subscribe MQTT topic
+// Subscribe สมัครรับข้อความจาก Topic
 func (m *MQTTClient) Subscribe(topic string, callback paho.MessageHandler) error {
 	if token := m.Client.Subscribe(topic, 0, callback); token.Wait() && token.Error() != nil {
 		return token.Error()
